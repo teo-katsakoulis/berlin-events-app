@@ -32,17 +32,6 @@ export async function exchangeCodeForToken(code: string): Promise<string> {
       },
     }
   );
+  console.log("tokenRes.data.access_token:", tokenRes.data.access_token);
   return tokenRes.data.access_token;
-}
-
-export async function fetchTopArtists(token: string): Promise<any[]> {
-  const topArtistsRes = await axios.get(
-    "https://api.spotify.com/v1/me/top/artists?limit=10",
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    }
-  );
-  return topArtistsRes.data.items;
 }

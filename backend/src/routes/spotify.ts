@@ -1,14 +1,15 @@
 import { Router } from "express";
 import { getLoginURL, exchangeCodeForToken } from "../services/spotifyAuth";
-import { saveToken, getToken } from "../services/tokenStore";
+import { saveToken } from "../services/tokenStore";
 import {
   fetchRelatedArtists,
   fetchTopArtists,
   fetchFollowedArtists,
   fetchTopTracks,
+  fetchSpotifyProfile,
 } from "../services/spotifyData";
-import { Artist } from "../types/spotify";
-import { fetchWithCache, getCache, setCache } from "../services/cache";
+import { fetchWithCache } from "../services/cache";
+import { getValidToken } from "../services/spotifyToken";
 
 const router = Router();
 
@@ -23,16 +24,43 @@ router.get("/callback", async (req, res) => {
 
   try {
     const token = await exchangeCodeForToken(code);
-    saveToken("me", token);
-    res.send("Logged in with Spotify! You can now go to /spotify/top-artists");
+
+    const profile = await fetchSpotifyProfile(token.access_token);
+    const spotifyUserId = profile.id;
+
+    const expiresAt = Date.now() + token.expires_in * 1000;
+    saveToken(
+      spotifyUserId,
+      token.access_token,
+      token.refresh_token!,
+      expiresAt
+    );
+
+    res.send(`Logged in as Spotify user ${spotifyUserId}`);
   } catch (err) {
     console.error("Spotify callback error:", err);
     res.status(500).send("Something went wrong");
   }
 });
 
+router.get("/me", async (req, res) => {
+  const token = await getValidToken("me");
+  if (!token) return res.status(401).json({ error: "Token not found" });
+
+  try {
+    const me = await fetchWithCache("spotify:me", 600, () =>
+      fetchSpotifyProfile(token)
+    );
+
+    res.json(me);
+  } catch (err) {
+    console.error("Error fetching top artists:", err);
+    res.status(500).send("Failed to fetch artists");
+  }
+});
+
 router.get("/top-artists", async (req, res) => {
-  const token = getToken("me");
+  const token = await getValidToken("me");
   if (!token) return res.status(401).json({ error: "Token not found" });
 
   try {
@@ -48,7 +76,7 @@ router.get("/top-artists", async (req, res) => {
 });
 
 router.get("/following-artists", async (req, res) => {
-  const token = getToken("me");
+  const token = await getValidToken("me");
   if (!token) return res.status(401).json({ error: "Token not found" });
 
   try {
@@ -66,7 +94,7 @@ router.get("/following-artists", async (req, res) => {
 });
 
 router.get("/top-tracks", async (req, res) => {
-  const token = getToken("me");
+  const token = await getValidToken("me");
   if (!token) return res.status(401).json({ error: "Token not found" });
 
   try {
@@ -82,7 +110,7 @@ router.get("/top-tracks", async (req, res) => {
 });
 
 router.get("/related-artists", async (req, res) => {
-  const token = getToken("me");
+  const token = await getValidToken("me");
   if (!token) return res.status(401).json({ error: "Token not found" });
 
   try {
@@ -118,7 +146,7 @@ router.get("/related-artists", async (req, res) => {
 });
 
 router.get("/genres", async (req, res) => {
-  const token = getToken("me");
+  const token = await getValidToken("me");
   if (!token) return res.status(401).json({ error: "Token not found" });
 
   try {

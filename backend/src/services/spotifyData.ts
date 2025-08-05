@@ -2,6 +2,15 @@ import axios from "axios";
 import { AxiosResponse } from "axios";
 import { Artist, FollowedArtist, FollowedArtistsPage } from "../types/spotify";
 
+export async function fetchSpotifyProfile(accessToken: string) {
+  const res = await axios.get("https://api.spotify.com/v1/me", {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+  return res.data;
+}
+
 export async function fetchTopArtists(token: string): Promise<Artist[]> {
   const topArtistsRes = await axios.get(
     "https://api.spotify.com/v1/me/top/artists?limit=10",

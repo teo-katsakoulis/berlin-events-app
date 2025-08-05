@@ -1,5 +1,6 @@
 import axios from "axios";
 import qs from "qs";
+import { SpotifyTokenResponse } from "../types/spotify";
 
 const client_id = process.env.SPOTIFY_CLIENT_ID!;
 const client_secret = process.env.SPOTIFY_CLIENT_SECRET!;
@@ -16,7 +17,9 @@ export function getLoginURL(): string {
   return `https://accounts.spotify.com/authorize?${queryParams}`;
 }
 
-export async function exchangeCodeForToken(code: string): Promise<string> {
+export async function exchangeCodeForToken(
+  code: string
+): Promise<SpotifyTokenResponse> {
   const tokenRes = await axios.post(
     "https://accounts.spotify.com/api/token",
     qs.stringify({
@@ -32,6 +35,5 @@ export async function exchangeCodeForToken(code: string): Promise<string> {
       },
     }
   );
-  console.log("tokenRes.data.access_token:", tokenRes.data.access_token);
-  return tokenRes.data.access_token;
+  return tokenRes.data;
 }

@@ -21,11 +21,10 @@ export function saveToken(
       refresh_token=excluded.refresh_token,
       expires_at=excluded.expires_at
   `);
-  stmt.run(userId, accessToken, refreshToken ?? null, expiresAt ?? null);
+  stmt.run(userId, accessToken, refreshToken, expiresAt);
 }
 
-export function getToken(userId: string): string | undefined {
-  const stmt = db.prepare("SELECT access_token FROM tokens WHERE user_id = ?");
-  const row = stmt.get(userId) as TokenRow | undefined;
-  return row?.access_token;
+export function getTokenRow(userId: string): TokenRow | undefined {
+  const stmt = db.prepare("SELECT * FROM tokens WHERE user_id = ?");
+  return stmt.get(userId) as TokenRow | undefined;
 }

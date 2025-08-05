@@ -4,12 +4,13 @@ import { saveToken, getToken } from "../services/tokenStore";
 import {
   fetchRelatedArtists,
   fetchTopArtists,
+  fetchFollowedArtists,
   fetchTopTracks,
-  Artist,
 } from "../services/spotifyData";
+import { Artist } from "../types/spotify";
+import { fetchWithCache, getCache, setCache } from "../services/cache";
 
 const router = Router();
-const relatedArtists = new Map();
 
 router.get("/login", (req, res) => {
   const loginURL = getLoginURL();
@@ -35,11 +36,32 @@ router.get("/top-artists", async (req, res) => {
   if (!token) return res.status(401).json({ error: "Token not found" });
 
   try {
-    const artists = await fetchTopArtists(token);
-    res.json(artists.map((a) => a.name));
+    const artists = await fetchWithCache("spotify:me:top-artists", 600, () =>
+      fetchTopArtists(token)
+    );
+
+    res.json(artists.map((artist) => artist.name));
   } catch (err) {
     console.error("Error fetching top artists:", err);
     res.status(500).send("Failed to fetch artists");
+  }
+});
+
+router.get("/following-artists", async (req, res) => {
+  const token = getToken("me");
+  if (!token) return res.status(401).json({ error: "Token not found" });
+
+  try {
+    const followedArtists = await fetchWithCache(
+      "spotify:me:following-artists",
+      600,
+      () => fetchFollowedArtists(token)
+    );
+
+    res.json(followedArtists.map((a) => a.name));
+  } catch (err) {
+    console.error("Error fetching following artists:", err);
+    res.status(500).send("Failed to fetch following artists");
   }
 });
 
@@ -48,11 +70,14 @@ router.get("/top-tracks", async (req, res) => {
   if (!token) return res.status(401).json({ error: "Token not found" });
 
   try {
-    const artists = await fetchTopTracks(token);
-    res.json(artists.map((a) => a.name));
+    const tracks = await fetchWithCache("spotify:me:top-tracks", 600, () =>
+      fetchTopTracks(token)
+    );
+
+    res.json(tracks.map((t) => t.name));
   } catch (err) {
-    console.error("Error fetching top artists:", err);
-    res.status(500).send("Failed to fetch artists");
+    console.error("Error fetching top tracks:", err);
+    res.status(500).send("Failed to fetch top tracks");
   }
 });
 
@@ -61,31 +86,31 @@ router.get("/related-artists", async (req, res) => {
   if (!token) return res.status(401).json({ error: "Token not found" });
 
   try {
-    const topArtists = await fetchTopArtists(token);
+    const related = await fetchWithCache(
+      "spotify:me:related-artists",
+      600,
+      async () => {
+        const topArtists = await fetchTopArtists(token);
+        const result = new Map();
 
-    const relatedArtists = new Map();
+        for (const artist of topArtists) {
+          try {
+            const related = await fetchRelatedArtists(token, artist.id);
+            result.set(
+              artist.name,
+              related.map((a) => a.name)
+            );
+          } catch (err) {
+            console.error(`Failed for ${artist.name}`, err);
+            result.set(artist.name, []);
+          }
+        }
 
-    for (const artist of topArtists) {
-      try {
-        const related = await fetchRelatedArtists(token, artist.id);
-        relatedArtists.set(
-          artist.name,
-          related.map((a) => a.name)
-        );
-      } catch (err) {
-        console.error(
-          `Failed to fetch related for ${artist.name} (${artist.id}):`,
-          (err &&
-            typeof err === "object" &&
-            "response" in err &&
-            (err as any).response?.status) ||
-            err
-        );
-        relatedArtists.set(artist.name, []);
+        return Object.fromEntries(result);
       }
-    }
+    );
 
-    res.json(Object.fromEntries(relatedArtists));
+    res.json(related);
   } catch (err) {
     console.error("Error fetching related artists:", err);
     res.status(500).send("Failed to fetch related artists");
@@ -97,14 +122,22 @@ router.get("/genres", async (req, res) => {
   if (!token) return res.status(401).json({ error: "Token not found" });
 
   try {
-    const artists: Artist[] = await fetchTopArtists(token);
+    const genreCounts = await fetchWithCache(
+      "spotify:me:genres",
+      600,
+      async () => {
+        const artists = await fetchTopArtists(token);
+        const counts: Record<string, number> = {};
 
-    const genreCounts: Record<string, number> = {};
-    artists.forEach((artist) => {
-      artist.genres.forEach((genre) => {
-        genreCounts[genre] = (genreCounts[genre] || 0) + 1;
-      });
-    });
+        artists.forEach((artist) => {
+          artist.genres.forEach((genre) => {
+            counts[genre] = (counts[genre] || 0) + 1;
+          });
+        });
+
+        return counts;
+      }
+    );
 
     res.json(genreCounts);
   } catch (err) {

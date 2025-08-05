@@ -6,7 +6,7 @@ const client_secret = process.env.SPOTIFY_CLIENT_SECRET!;
 const redirect_uri = process.env.SPOTIFY_REDIRECT_URI!;
 
 export function getLoginURL(): string {
-  const scopes = ["user-top-read"];
+  const scopes = ["user-top-read", "user-follow-read"];
   const queryParams = qs.stringify({
     response_type: "code",
     client_id,
